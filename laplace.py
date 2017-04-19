@@ -42,23 +42,26 @@ class Electron:
         self.a = a
 
 class Proton:
-    def __init__(self, x0, y0, vx0, vy0):
+    def __init__(self, x0, y0, vx0, vy0, ax0, ay0):
         self.mass = 1.6726*10**-27
         self.charge = 1.6*10**-19
-            
         self.x0, self.y0 = x0, y0
         self.vx0, self.vy0 = vx0, vy0
+        self.ax0, self.ay0 = ax0, ay0
              
         self.r = np.array([x0, y0])
         self.v = np.array([vx0, vy0])
+        self.a = np.array([ax0, ay0])
         
-        self.onforce = 0
 
     def getR(self):
         return self.r
     
     def getV(self):
         return self.v
+    
+    def getA(self):
+        return self.a
     
     def getM(self):
         return self.mass
@@ -68,12 +71,9 @@ class Proton:
         
     def setV(self, v):
         self.v = v
-
-    def getonforce(self):
-        return self.onforce
-    
-    def setonforce(self, onforce):
-        self.onforce = onforce
+        
+    def setA(self, a):
+        self.a = a
 
 #CONSTANT = 10
 ELECTRON = -20 #Potential value measured 1 unit from electron
@@ -136,7 +136,7 @@ class Box:
 
     def addProton(self, x, y):
         """Adds an electron to the box matrix."""
-        proton = Proton(x, y, 0, 0)
+        proton = Proton(x, y, 0, 0, 0, 0)
         self.protons.append(proton)
 
     def surfaceCharge(self):
@@ -208,10 +208,10 @@ class Box:
 
     def surfacePlot(self):
         """Rutrns a surface plot of the box."""
-        xList = numpy.arange(0, self.width, 1)
-        yList = numpy.arange(0, self.length, 1)
-        X, Y = numpy.meshgrid(xList, yList)
-        Z = numpy.array(self.box)
+        xList = np.arange(0, self.width, 1)
+        yList = np.arange(0, self.length, 1)
+        X, Y = np.meshgrid(xList, yList)
+        Z = np.array(self.box)
         fig = plt.figure(figsize=plt.figaspect(0.5))
         ax = fig.add_subplot(1, 2, 1, projection='3d')
         return ax.plot_wireframe(X, Y, Z, cmap=cm.coolwarm, rstride = 5)
@@ -230,39 +230,74 @@ class Box:
         
         for electron in range(len(self.electrons)):
             thisElectron = self.electrons[electron]
-            r = thisElectron.getR()
+            r = np.array(thisElectron.getR())
             v = thisElectron.getV()
             a = thisElectron.getA()
             
             for i in range(1, len(self.electrons)):
                 otherElectron = self.electrons[(electron + i)%len(self.electrons)]
-                r2 = otherElectron.getR()
-                const = 9*10**9 * -1.6*10**-19
+                r2 = np.array(otherElectron.getR())
+                const = 9*10**9 * 1.6*10**-19
                 const = const/((np.linalg.norm(r - r2))**3)
                 vector = r - r2
                 a = a + const*vector
-                print(a)
+                #print(a)
                 
             
             for j in range(0, len(self.protons)):
                 otherProton = self.protons[(electron + j)%len(self.protons)]
                 r2 = otherProton.getR()
+                const = 9*10**9 * -1.6*10**-19
+                const = const/((np.linalg.norm(r - r2))**3)
+                vector = r - r2
+                a = a + const*vector
+                #print(a)
+            #print(a)
+            thisElectron.setA(a)
+            
+    def forcesonP(self):
+        
+        for proton in range(len(self.protons)):
+            thisProton = self.protons[proton]
+            r = np.array(thisProton.getR())
+            v = thisProton.getV()
+            a = thisProton.getA()
+            
+            for i in range(1, len(self.protons)):
+                otherProton = self.protons[(proton + i)%len(self.protons)]
+                r2 = np.array(otherProton.getR())
                 const = 9*10**9 * 1.6*10**-19
                 const = const/((np.linalg.norm(r - r2))**3)
                 vector = r - r2
                 a = a + const*vector
                 
-            #thisElectron.setA(a)
+                
+            
+            for j in range(0, len(self.electrons)):
+                otherElectron = self.electrons[(proton + j)%len(self.electrons)]
+                r2 = otherElectron.getR()
+                const = 9*10**9 * -1.6*10**-19
+                const = const/((np.linalg.norm(r - r2))**3)
+                vector = r - r2
+                a = a + const*vector
+                
+            
+            thisProton.setA(a)
         
                 
     def eulerStepElectron(self, tau):
         """Positionally advances the electrons for one time increment."""
-        
+    
         for i in range(len(self.electrons)):
+            
+            a = self.electrons[i].getA()
             
             accelx = self.forceE(i)[0]/(9.10938*10**-31)
             accely = self.forceE(i)[1]/(9.10938*10**-31)
             #print(box.electrons[i].getA())
+            
+            accelx = a[0]
+            accely = a[1]
         
             vx = self.electrons[i].getV()[0]
             vy = self.electrons[i].getV()[1]
@@ -279,14 +314,20 @@ class Box:
             self.electrons[i].setR([newx, newy])
             self.electrons[i].setV([newvx, newvy])
             
+            
         return self.electrons
     
     def eulerStepProton(self, tau):
         
         for i in range(len(self.protons)):
             
+            a = self.protons[i].getA()
+            
             accelx = self.forceP(i)[0]/(1.6726*10**-27)
             accely = self.forceP(i)[1]/(1.6726*10**-27)
+            
+            accelx = a[0]
+            accely = a[1]
         
             vx = self.protons[i].getV()[0]
             vy = self.protons[i].getV()[1]
@@ -309,10 +350,11 @@ Y = 31
 X = 31
 
 box = Box(Y, X)
-box.addElectron(int(X/2), int(Y/2))
+#box.addElectron(int(X/2), int(Y/2))
+box.addElectron(15, 15)
 box.addElectron(16, 20)
-box.addProton(25, 18)
-box.addProton(2, 10)
+box.addProton(17, 18)
+box.addProton(20, 10)
 #box.addElectron((int(X/2)+1, int(Y/2)))
 #box.addElectron((int(51/4)+1, int(51/2)+1))
 
@@ -321,39 +363,43 @@ box.setPotentials(0.1, 0.1, 0.1, 0.1) #Top, bottom, left right
 box.relaxation(.0000000000000000001) #For 31X31
 #box.relaxation(.000000000000001) For 51x51
 
-
-#for k in range(len(box.electrons)):
-#    print(box.forceE(k))
-#for k in range(len(box.protons)):
-#    print(box.forceP(k))
 box.forcesonE()
-print(box.electrons[0].getA())
-#print(box.forcesonE()[1].getA())
+box.forcesonP()
+xpos1 = []
+ypos1 = []
+xpos2 = []
+ypos2 = []
+etstep = 1300
+ptstep = 1300
+xpos3 = []
+ypos3 = []
+xpos4 = []
+ypos4 = []
 
-#xpos1 = []
-#ypos1 = []
-#xpos2 = []
-#ypos2 = []
-#etstep = 0.000000000000001
-#ptstep = 0.0000000000001
-#xpos3 = []
-#ypos3 = []
-#for i in range(0, 30):
-#    el = box.eulerStepElectron(etstep)
-#    xpos1.append(el[0].getR()[0])
-#    ypos1.append(el[0].getR()[1])
-#    xpos2.append(el[1].getR()[0])
-#    ypos2.append(el[1].getR()[1])
-#    
-#    pr = box.eulerStepProton(ptstep)
-#    xpos3.append(pr[0].getR()[0])
-#    ypos3.append(pr[0].getR()[1])
-#    
-#    
-#    
-#
-#plt.plot(xpos1, ypos1)
-#plt.plot(xpos2, ypos2)
-#plt.plot(xpos3, ypos3)
-surface = box.surfacePlot()
+plt.ion()
+for i in range(0, 40):
+    box.forcesonE()
+    el = box.eulerStepElectron(etstep)
+    xpos1.append(el[0].getR()[0])
+    ypos1.append(el[0].getR()[1])
+    xpos2.append(el[1].getR()[0])
+    ypos2.append(el[1].getR()[1])
+    
+    box.forcesonP()
+    pr = box.eulerStepProton(ptstep)
+    xpos3.append(pr[0].getR()[0])
+    ypos3.append(pr[0].getR()[1])
+    xpos4.append(pr[1].getR()[0])
+    ypos4.append(pr[1].getR()[1])
+    
+    plt.plot(xpos1, ypos1)
+    plt.plot(xpos2, ypos2)
+    plt.plot(xpos3, ypos3)
+    plt.plot(xpos4, ypos4)
+    plt.pause(0.3)
+    
+    
+
+#surface = box.surfacePlot()
+#plt.show()
 plt.show()
