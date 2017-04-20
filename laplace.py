@@ -87,11 +87,6 @@ class Box:
             self.box[0][i] = self.top
             self.box[self.length-1][i] = self.bottom
 
-        # Set the potential values of each electron
-        """for electron in self.particles:
-            self.box[electron[0]][electron[1]] = ELECTRON
-        for proton in self.protons:
-            self.box[proton[0]][proton[1]] = PROTON"""
         
     def createBox(self):
         """Creates the box matrix (2-dimensional list)."""
@@ -105,24 +100,28 @@ class Box:
 
     def addElectron(self, x, y):
         """Adds an electron to the box matrix."""
-        electron = Particle(x, y, 0, 0, 0, 0, 9.11*10**-31, -1.6*10**-19)
+        i = y
+        j = x
+        electron = Particle(j, i, 0, 0, 0, 0, 9.11*10**-31, -1.6*10**-19)
         self.particles.append(electron)
-        self.particlePositions.append((x, y))
-        self.box[x][y] = ELECTRON
+        self.particlePositions.append((i, j))
+        self.box[i][j] = ELECTRON
 
     def addProton(self, x, y):
         """Adds an electron to the box matrix."""
-        proton = Particle(x, y, 0, 0, 0, 0, 1.627*10**-27, 1.6*10**-19)
+        i = y
+        j = x
+        proton = Particle(j, i, 0, 0, 0, 0, 1.627*10**-27, 1.6*10**-19)
         self.particles.append(proton)
-        self.particlePositions.append((x, y))
-        self.box[x][y] = PROTON
+        self.particlePositions.append((i, j))
+        self.box[i][j] = PROTON
 
     def setParticlePositions(self):
         """Sets the particle positions in the box."""
         particlePositions = []
         for particle in self.particles:
-            x, y = particle.getR()[0], particle.getR()[1]
-            particlePositions.append((int(x), int(y)))
+            i, j = particle.getR()[1], particle.getR()[0]
+            particlePositions.append((int(i), int(j)))
         self.particlePositions = particlePositions
 
     def relaxation(self, tolerance):
@@ -159,37 +158,47 @@ class Box:
 
     def maxwellForce(self,k):
         """Uses Maxwell-Stress Tensor to calculate the force on thhe k'th particle."""
-        i = int(round(self.particles[k].getR()[0]))
-        j = int(round(self.particles[k].getR()[1]))
-        force = 0
-        n = j - 2
+        j = int(round(self.particles[k].getR()[0]))
+        i = int(round(self.particles[k].getR()[1]))
+        #print("pos", i, j)
+        force = [0, 0]
+        temp = [0, 0]
+        i = i - 2
+        j = j - 2
         for m in range(4):
+            #print(i,j)
             ds = numpy.array([0, 1])
-            force += numpy.dot(self.electricTensor(i-2, n), ds)
-            n += 1
-        n = i - 2
+            force += numpy.inner(self.electricTensor(i, j), ds)
+            temp += numpy.inner(self.electricTensor(i, j), ds)
+            j += 1
+        #print(temp)
+        temp = [0, 0]
         for m in range(4):
+            #print(i,j)
             ds = numpy.array([1, 0])
-            force += numpy.dot(self.electricTensor(n, j+2), ds)
-            n += 1
-        n = j + 2
+            force += numpy.inner(self.electricTensor(i, j), ds)
+            temp += numpy.inner(self.electricTensor(i, j), ds)
+            i += 1
+        #print(temp)
+        temp = [0, 0]
         for m in range(4):
-            ds = numpy.array([0, 1])
-            force += numpy.dot(self.electricTensor(i+2, n), ds)
-            n += 1
-        n = i + 2
+            #print(i,j)
+            ds = numpy.array([0, -1])    
+            force += numpy.inner(self.electricTensor(i, j), ds)
+            temp += numpy.inner(self.electricTensor(i, j), ds)
+            j -= 1
+        #print(temp)
+        temp = [0, 0]
         for m in range(4):
-            ds = numpy.array([1, 0])
-            force += numpy.dot(self.electricTensor(n, j-2), ds)
-            n += 1
-
+            #print(i,j)
+            ds = numpy.array([-1, 0])
+            force += numpy.inner(self.electricTensor(i, j), ds)
+            temp += numpy.inner(self.electricTensor(i, j), ds)
+            i -= 1
+        #print(temp)  
+        #print(force)
         return force
 
-
-    def forceE(self, k):
-        """Calculates the electric force on the kth electron."""
-        i, j = int(self.particles[k][0]), int(self.particles[k][1])
-        return ((self.box[i+1][j]-self.box[i-1][j])/2, (self.box[i][j+1]-self.box[i][j-1])/2)
 
     def surfacePlot(self):
         """Rutrns a surface plot of the box."""
@@ -224,17 +233,11 @@ class Box:
     
         for i in range(len(self.particles)):
             
-            self.relaxation(.01)
-            #a = self.particles[i].getA()
+            self.relaxation(.0000000000000001)
             
             
             accelx = self.maxwellForce(i)[0]/(self.particles[i].getM())
             accely = self.maxwellForce(i)[1]/(self.particles[i].getM())
-            #print(box.particles[i].getA())
-            #print(accelx, accely)
-            
-#            accelx = a[0]
-#            accely = a[1]
         
             vx = self.particles[i].getV()[0]
             vy = self.particles[i].getV()[1]
@@ -263,59 +266,62 @@ Y = 40
 X = 40
 
 box = Box(Y, X)
-box.addElectron(22, 32)
-#box.addElectron(21, 31)
+box.addElectron(18, 18)
+#box.addElectron(17, 20)
 #box.addElectron(15, 15)
-#box.addProton(17, 17)
+#box.addElectron(20, 20)
+#box.addProton(20,20)
+#box.addProton(30, 30)
 
 #box.addElectron((int(51/4)+1, int(51/2)+1))
 
-box.setPotentials(-20, -20, -20, -20) #Top, bottom, left right 
+box.setPotentials(0, 1, 0, 0) #Top, bottom, left right 
 box.setParticlePositions()
-box.relaxation(.0000001)
+box.relaxation(.0000000000000000001)
 #box.relaxation(.001)
 #box.surfacePlot2()
 #box.relaxation(.00000000000001) #For 31X31
 #box.relaxation(.000000000000001) For 51x51
 
 #surface = box.surfacePlot()
+print(box.maxwellForce(0))
+#print(box.maxwellForce(1))
 
 xpos1 = []
 ypos1 = []
 xpos2 = []
 ypos2 = []
-tau = 0.000000000000001
+tau = 0.0000000000000005
 xpos3 = []
 ypos3 = []
 xpos4 = []
 ypos4 = []
 
 plt.ion()
-for i in range(0, 100):
-    #box.maxwellForce(0)
+
+while(True):
     p = box.eulerStepParticle(tau)
     xpos1.append(p[0].getR()[0])
     ypos1.append(p[0].getR()[1])
-
+#
 #    xpos2.append(p[1].getR()[0])
 #    ypos2.append(p[1].getR()[1])
-    
+#    
 #    xpos3.append(p[2].getR()[0])
 #    ypos3.append(p[2].getR()[1])
 #    xpos4.append(p[3].getR()[0])
 #    ypos4.append(p[3].getR()[1])
-    
+#    
 #    plt.plot(xpos1, ypos1,label =  "electron 1", color = 'red')
 #    plt.plot(xpos2, ypos2, label = "electron 2", color = 'orange')
 #    plt.plot(xpos3, ypos3, label = "proton 1", color = 'blue')
 #    plt.plot(xpos4, ypos4, label = "proton 2", color = 'black')
     box.surfacePlot2()
     plt.pause(0.3)
-    
-    
+
 
 #surface = box.surfacePlot()
 #box.surfacePlot2()
 #plt.plot(xpos1, ypos1, color = 'red')
 #plt.plot(xpos2, ypos2,  color = 'orange')
-plt.show()
+#plt.show()
